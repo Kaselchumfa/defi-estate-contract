@@ -12,17 +12,24 @@ mod events;
 mod storage;
 
 #[cfg(test)]
+mod proptests;
+#[cfg(test)]
 mod test;
 
 pub use errors::Error;
 
-use soroban_sdk::{contract, contractimpl, panic_with_error, token, Address, Env, Map};
+use soroban_sdk::{
+    contract, contractimpl, panic_with_error, token, Address, BytesN, Env, Map,
+};
 use storage::DataKey;
 
 pub use storage::RoundInfo;
 
 /// Upper bound on allocations per call, to stay well inside the resource limits.
 pub const MAX_ALLOCATIONS: u32 = 100;
+
+/// Crate version, exposed through the `version` view.
+pub const VERSION: u32 = 1;
 
 #[contract]
 pub struct YieldDistributor;
@@ -49,10 +56,15 @@ impl YieldDistributor {
             panic_with_error!(&env, Error::InvalidAllocations);
         }
 
+        let share_token = token::Client::new(&env, &storage::share_token(&env));
+
         let mut total: i128 = 0;
         for (holder, amount) in allocations.iter() {
             if amount <= 0 {
                 panic_with_error!(&env, Error::InvalidAmount);
+            }
+            if !share_token.is_whitelisted(&holder) {
+                panic_with_error!(&env, Error::RecipientNotWhitelisted);
             }
             total = total
                 .checked_add(amount)
@@ -107,7 +119,19 @@ impl YieldDistributor {
         env.storage().instance().set(&DataKey::Admin, &new_admin);
     }
 
+    /// Replaces this contract's code in place. Admin auth required.
+    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+        storage::admin(&env).require_auth();
+        env.deployer()
+            .update_current_contract_wasm(new_wasm_hash.clone());
+        events::upgraded(&env, new_wasm_hash);
+    }
+
     // Views
+
+    pub fn version(_env: Env) -> u32 {
+        VERSION
+    }
 
     pub fn claimable(env: Env, holder: Address) -> i128 {
         storage::claimable(&env, &holder)
@@ -134,7 +158,7 @@ impl YieldDistributor {
     }
 
     pub fn share_token(env: Env) -> Address {
-        env.storage().instance().get(&DataKey::ShareToken).unwrap()
+        storage::share_token(&env)
     }
 
     pub fn admin(env: Env) -> Address {

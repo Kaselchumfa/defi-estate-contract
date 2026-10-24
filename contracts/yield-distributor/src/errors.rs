@@ -8,4 +8,5 @@ pub enum Error {
     InvalidAllocations = 2,
     NothingToClaim = 3,
     Overflow = 4,
+    RecipientNotWhitelisted = 5,
 }

@@ -150,3 +150,38 @@ fn mint_requires_admin_auth() {
     // No mocked auths: the admin has not signed, so this must panic.
     client.mint(&Address::generate(&env), &1);
 }
+
+#[test]
+fn version_returns_crate_version() {
+    let s = setup();
+    assert_eq!(s.client.version(), VERSION);
+}
+
+#[test]
+fn admin_can_upgrade_contract() {
+    let s = setup();
+    let new_wasm_hash = s.env.deployer().upload_contract_wasm(PropertyTokenWasm);
+    s.client.upgrade(&new_wasm_hash);
+    // Contract remains callable after the in-place upgrade.
+    assert_eq!(s.client.version(), VERSION);
+}
+
+#[test]
+fn non_admin_upgrade_fails() {
+    let env = Env::default();
+    let admin = Address::generate(&env);
+    let id = env.register(
+        PropertyToken,
+        (
+            admin,
+            String::from_str(&env, "prop-001"),
+            String::from_str(&env, "Shares"),
+            String::from_str(&env, "SHR"),
+            100i128,
+        ),
+    );
+    let client = PropertyTokenClient::new(&env, &id);
+    let new_wasm_hash = env.deployer().upload_contract_wasm(PropertyTokenWasm);
+    // No mocked auths: the admin has not signed, so this must panic.
+    client.upgrade(&new_wasm_hash);
+}

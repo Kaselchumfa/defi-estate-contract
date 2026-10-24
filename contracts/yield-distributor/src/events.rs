@@ -1,4 +1,4 @@
-use soroban_sdk::{contractevent, Address, Env};
+use soroban_sdk::{contractevent, Address, BytesN, Env};
 
 #[contractevent]
 pub struct Distributed {
@@ -15,6 +15,12 @@ pub struct Claimed {
     pub amount: i128,
 }
 
+#[contractevent]
+pub struct Upgraded {
+    #[topic]
+    pub new_wasm_hash: BytesN<32>,
+}
+
 pub fn distributed(env: &Env, round: u32, total: i128, recipients: u32) {
     Distributed {
         round,
@@ -26,4 +32,8 @@ pub fn distributed(env: &Env, round: u32, total: i128, recipients: u32) {
 
 pub fn claimed(env: &Env, holder: Address, amount: i128) {
     Claimed { holder, amount }.publish(env);
+}
+
+pub fn upgraded(env: &Env, new_wasm_hash: BytesN<32>) {
+    Upgraded { new_wasm_hash }.publish(env);
 }
