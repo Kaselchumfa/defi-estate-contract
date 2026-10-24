@@ -113,6 +113,37 @@ fn double_claim_pays_once() {
 }
 
 #[test]
+fn round_info_records_each_distribution() {
+    let s = setup();
+    let alice = Address::generate(&s.env);
+    let bob = Address::generate(&s.env);
+
+    s.client.distribute(&map![
+        &s.env,
+        (alice.clone(), 700i128),
+        (bob.clone(), 300i128)
+    ]);
+    let first = s.client.round_info(&1).unwrap();
+    assert_eq!(first.total, 1_000);
+    assert_eq!(first.recipients, 2);
+    assert_eq!(first.ledger, s.env.ledger().sequence());
+    assert_eq!(first.timestamp, s.env.ledger().timestamp());
+
+    s.client.distribute(&map![&s.env, (alice.clone(), 50i128)]);
+    let second = s.client.round_info(&2).unwrap();
+    assert_eq!(second.total, 50);
+    assert_eq!(second.recipients, 1);
+    assert_eq!(second.ledger, s.env.ledger().sequence());
+    assert_eq!(second.timestamp, s.env.ledger().timestamp());
+}
+
+#[test]
+fn round_info_unknown_round_is_none() {
+    let s = setup();
+    assert_eq!(s.client.round_info(&99), None);
+}
+
+#[test]
 #[should_panic]
 fn distribute_requires_admin_auth() {
     let env = Env::default();

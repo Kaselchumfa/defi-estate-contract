@@ -26,11 +26,26 @@ Holds rental income in a payout asset (for example a USDC Stellar Asset Contract
 | `__constructor(admin, payout_token, share_token)`                                                  | deployer |                                                                         |
 | `distribute(allocations: Map<Address, i128>)`                                                      | admin    | pulls the sum from admin, credits each holder, max 100 entries per call |
 | `claim(holder)`                                                                                    | holder   | pays everything owed                                                    |
-| `claimable`, `round`, `total_distributed`, `total_claimed`, `payout_token`, `share_token`, `admin` | none     | views                                                                   |
+| `claimable`, `round`, `round_info`, `total_distributed`, `total_claimed`, `payout_token`, `share_token`, `admin` | none     | views                                                                   |
 
 Errors: `InvalidAmount`, `InvalidAllocations`, `NothingToClaim`, `Overflow`.
 
 Allocations are computed off-chain by the API from a balance snapshot, which keeps share transfers cheap and avoids per-transfer reward bookkeeping.
+
+### Per-round audit records
+
+Every `distribute` call stores a summary of the round so payouts can be verified on-chain without indexing events:
+
+```rust
+pub struct RoundInfo {
+    pub total: i128,      // amount distributed in this round
+    pub recipients: u32,  // number of allocations in the round
+    pub ledger: u32,      // ledger sequence at distribution
+    pub timestamp: u64,   // ledger timestamp at distribution
+}
+```
+
+The record is written to persistent storage under `DataKey::Round(u32)` (the round number, matching the value returned by `round()`), and its TTL is extended like other persistent entries. `round_info(round)` returns `Some(RoundInfo)` for a past round and `None` for an unknown round.
 
 ## Build, test, deploy
 
