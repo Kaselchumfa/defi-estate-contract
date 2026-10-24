@@ -9,4 +9,5 @@ pub enum Error {
     InsufficientBalance = 3,
     MaxSupplyExceeded = 4,
     Overflow = 5,
+    Paused = 6,
 }

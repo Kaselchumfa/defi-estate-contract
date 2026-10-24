@@ -59,6 +59,7 @@ impl PropertyToken {
 
     pub fn mint(env: Env, to: Address, amount: i128) {
         storage::admin(&env).require_auth();
+        require_not_paused(&env);
         require_positive(&env, amount);
         require_whitelisted(&env, &to);
 
@@ -74,10 +75,42 @@ impl PropertyToken {
         events::mint(&env, to, amount);
     }
 
-    pub fn set_admin(env: Env, new_admin: Address) {
+    pub fn burn(env: Env, from: Address, amount: i128) {
         storage::admin(&env).require_auth();
-        env.storage().instance().set(&DataKey::Admin, &new_admin);
-        events::admin_changed(&env, new_admin);
+        require_positive(&env, amount);
+        burn_shares(&env, &from, amount);
+    }
+
+    pub fn pause(env: Env) {
+        storage::admin(&env).require_auth();
+        env.storage().instance().set(&DataKey::Paused, &true);
+        events::paused(&env);
+    }
+
+    pub fn unpause(env: Env) {
+        storage::admin(&env).require_auth();
+        env.storage().instance().set(&DataKey::Paused, &false);
+        events::unpaused(&env);
+    }
+
+    pub fn propose_admin(env: Env, new_admin: Address) {
+        storage::admin(&env).require_auth();
+        env.storage().instance().set(&DataKey::PendingAdmin, &new_admin);
+        events::admin_proposed(&env, new_admin);
+    }
+
+    pub fn accept_admin(env: Env) {
+        let pending = storage::pending_admin(&env)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::NoPendingAdmin));
+        pending.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &pending);
+        env.storage().instance().remove(&DataKey::PendingAdmin);
+        events::admin_changed(&env, pending);
+    }
+
+    pub fn cancel_admin_proposal(env: Env) {
+        storage::admin(&env).require_auth();
+        env.storage().instance().remove(&DataKey::PendingAdmin);
     }
 
     /// Replaces the contract code in place. Admin only.
@@ -92,16 +125,40 @@ impl PropertyToken {
 
     pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
         from.require_auth();
+        require_not_paused(&env);
         require_positive(&env, amount);
         require_whitelisted(&env, &to);
 
-        let from_balance = storage::balance(&env, &from);
-        if from_balance < amount {
-            panic_with_error!(&env, Error::InsufficientBalance);
-        }
-        storage::set_balance(&env, &from, from_balance - amount);
-        storage::set_balance(&env, &to, storage::balance(&env, &to) + amount);
+        move_shares(&env, &from, &to, amount);
         events::transfer(&env, from, to, amount);
+    }
+
+    pub fn approve(env: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
+        from.require_auth();
+        if amount < 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
+        storage::set_allowance(&env, &from, &spender, amount, expiration_ledger);
+        events::approve(&env, from, spender, amount, expiration_ledger);
+    }
+
+    pub fn transfer_from(env: Env, spender: Address, from: Address, to: Address, amount: i128) {
+        spender.require_auth();
+        require_not_paused(&env);
+        require_positive(&env, amount);
+        require_whitelisted(&env, &to);
+
+        storage::spend_allowance(&env, &from, &spender, amount);
+        move_shares(&env, &from, &to, amount);
+        events::transfer(&env, from, to, amount);
+    }
+
+    pub fn burn_from(env: Env, spender: Address, from: Address, amount: i128) {
+        spender.require_auth();
+        require_positive(&env, amount);
+
+        storage::spend_allowance(&env, &from, &spender, amount);
+        burn_shares(&env, &from, amount);
     }
 
     // Views
@@ -124,6 +181,18 @@ impl PropertyToken {
 
     pub fn admin(env: Env) -> Address {
         storage::admin(&env)
+    }
+
+    pub fn pending_admin(env: Env) -> Option<Address> {
+        storage::pending_admin(&env)
+    }
+
+    pub fn allowance(env: Env, from: Address, spender: Address) -> i128 {
+        storage::allowance(&env, &from, &spender)
+    }
+
+    pub fn is_paused(env: Env) -> bool {
+        storage::is_paused(&env)
     }
 
     pub fn property_id(env: Env) -> String {
@@ -157,4 +226,31 @@ fn require_whitelisted(env: &Env, account: &Address) {
     if !storage::is_whitelisted(env, account) {
         panic_with_error!(env, Error::NotWhitelisted);
     }
+}
+
+fn require_not_paused(env: &Env) {
+    if storage::is_paused(env) {
+        panic_with_error!(env, Error::Paused);
+    }
+}
+
+fn move_shares(env: &Env, from: &Address, to: &Address, amount: i128) {
+    let from_balance = storage::balance(env, from);
+    if from_balance < amount {
+        panic_with_error!(env, Error::InsufficientBalance);
+    }
+    storage::set_balance(env, from, from_balance - amount);
+    storage::set_balance(env, to, storage::balance(env, to) + amount);
+}
+
+fn burn_shares(env: &Env, from: &Address, amount: i128) {
+    let from_balance = storage::balance(env, from);
+    if from_balance < amount {
+        panic_with_error!(env, Error::InsufficientBalance);
+    }
+    storage::set_balance(env, from, from_balance - amount);
+    let supply = storage::total_supply(env) - amount;
+    env.storage().instance().set(&DataKey::TotalSupply, &supply);
+    storage::extend_instance(env);
+    events::burn(env, from.clone(), amount);
 }

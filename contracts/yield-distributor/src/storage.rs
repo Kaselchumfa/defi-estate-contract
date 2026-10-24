@@ -8,6 +8,7 @@ const TTL_THRESHOLD: u32 = TTL_EXTEND_TO - 17_280;
 #[derive(Clone)]
 pub enum DataKey {
     Admin,
+    PendingAdmin,
     PayoutToken,
     ShareToken,
     Round,
@@ -35,6 +36,20 @@ pub fn extend_instance(env: &Env) {
 
 pub fn admin(env: &Env) -> Address {
     env.storage().instance().get(&DataKey::Admin).unwrap()
+}
+
+pub fn pending_admin(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&DataKey::PendingAdmin)
+}
+
+pub fn set_pending_admin(env: &Env, new_admin: &Address) {
+    env.storage()
+        .instance()
+        .set(&DataKey::PendingAdmin, new_admin);
+}
+
+pub fn clear_pending_admin(env: &Env) {
+    env.storage().instance().remove(&DataKey::PendingAdmin);
 }
 
 pub fn payout_token(env: &Env) -> Address {

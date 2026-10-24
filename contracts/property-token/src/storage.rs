@@ -15,6 +15,9 @@ pub enum DataKey {
     TotalSupply,
     Balance(Address),
     Whitelisted(Address),
+    Paused,
+    PendingAdmin,
+    Allowance(Address, Address),
 }
 
 pub fn extend_instance(env: &Env) {
@@ -76,4 +79,76 @@ pub fn set_whitelisted(env: &Env, id: &Address, allowed: bool) {
     } else {
         env.storage().persistent().remove(&key);
     }
+}
+
+pub fn is_paused(env: &Env) -> bool {
+    env.storage()
+        .instance()
+        .get(&DataKey::Paused)
+        .unwrap_or(false)
+}
+
+pub fn set_paused(env: &Env, paused: bool) {
+    env.storage().instance().set(&DataKey::Paused, &paused);
+}
+
+pub fn pending_admin(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&DataKey::PendingAdmin)
+}
+
+pub fn set_pending_admin(env: &Env, id: &Address) {
+    env.storage().instance().set(&DataKey::PendingAdmin, id);
+}
+
+pub fn clear_pending_admin(env: &Env) {
+    env.storage().instance().remove(&DataKey::PendingAdmin);
+}
+
+pub fn allowance(env: &Env, from: &Address, spender: &Address) -> i128 {
+    let key = DataKey::Allowance(from.clone(), spender.clone());
+    let (amount, expiration_ledger): (i128, u32) = env
+        .storage()
+        .temporary()
+        .get(&key)
+        .unwrap_or((0, 0));
+    if expiration_ledger < env.ledger().sequence() {
+        0
+    } else {
+        amount
+    }
+}
+
+pub fn approve(
+    env: &Env,
+    from: &Address,
+    spender: &Address,
+    amount: i128,
+    expiration_ledger: u32,
+) {
+    let key = DataKey::Allowance(from.clone(), spender.clone());
+    env.storage()
+        .temporary()
+        .set(&key, &(amount, expiration_ledger));
+    if amount > 0 && expiration_ledger > env.ledger().sequence() {
+        env.storage().temporary().extend_ttl(
+            &key,
+            expiration_ledger - env.ledger().sequence(),
+            expiration_ledger - env.ledger().sequence(),
+        );
+    }
+}
+
+pub fn spend_allowance(env: &Env, from: &Address, spender: &Address, amount: i128) {
+    let key = DataKey::Allowance(from.clone(), spender.clone());
+    let (current, expiration_ledger): (i128, u32) = env
+        .storage()
+        .temporary()
+        .get(&key)
+        .unwrap_or((0, 0));
+    if expiration_ledger < env.ledger().sequence() || current < amount {
+        panic_with_error!(env, crate::errors::Error::InsufficientAllowance);
+    }
+    env.storage()
+        .temporary()
+        .set(&key, &(current - amount, expiration_ledger));
 }

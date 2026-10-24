@@ -173,6 +173,53 @@ fn distribute_requires_admin_auth() {
 }
 
 #[test]
+fn propose_admin_does_not_change_admin_until_accepted() {
+    let s = setup();
+    let new_admin = Address::generate(&s.env);
+
+    s.client.propose_admin(&new_admin);
+
+    assert_eq!(s.client.admin(), s.admin);
+    assert_eq!(s.client.pending_admin(), Some(new_admin.clone()));
+
+    s.client.accept_admin();
+
+    assert_eq!(s.client.admin(), new_admin);
+    assert_eq!(s.client.pending_admin(), None);
+}
+
+#[test]
+fn accept_admin_by_wrong_account_fails() {
+    let s = setup();
+    let new_admin = Address::generate(&s.env);
+    let stranger = Address::generate(&s.env);
+
+    s.client.propose_admin(&new_admin);
+
+    s.env.mock_auths(&[]);
+    assert_eq!(
+        s.client.try_accept_admin(),
+        Err(Ok(err(Error::Unauthorized)))
+    );
+    let _ = stranger;
+
+    assert_eq!(s.client.admin(), s.admin);
+    assert_eq!(s.client.pending_admin(), Some(new_admin));
+}
+
+#[test]
+fn cancel_pending_admin_clears_proposal() {
+    let s = setup();
+    let new_admin = Address::generate(&s.env);
+
+    s.client.propose_admin(&new_admin);
+    s.client.cancel_admin_proposal();
+
+    assert_eq!(s.client.pending_admin(), None);
+    assert_eq!(s.client.admin(), s.admin);
+}
+
+#[test]
 fn rejects_non_whitelisted_recipient() {
     let s = setup();
     let alice = Address::generate(&s.env);
