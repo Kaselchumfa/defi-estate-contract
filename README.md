@@ -35,3 +35,67 @@ stellar keys generate --global admin --network testnet --fund
 ```
 
 Record the printed IDs in `deployments/<network>.json`.
+
+## TypeScript bindings
+
+Every CI run generates TypeScript client bindings for both contracts from the built wasm and uploads them as a workflow artifact named `contract-bindings`. The artifact contains one package per contract:
+
+```
+bindings/
+├── property-token/
+└── yield-distributor/
+```
+
+### Download the artifact
+
+From the GitHub UI, open the workflow run for the commit you want (Actions → **Contracts CI** → the run) and download the `contract-bindings` artifact. With the [GitHub CLI](https://cli.github.com/):
+
+```bash
+# latest run on the current branch
+gh run download --name contract-bindings --dir ./contract-bindings
+
+# or a specific run
+gh run download <run-id> --name contract-bindings --dir ./contract-bindings
+```
+
+### Generate locally
+
+You can also produce the bindings yourself after a wasm build:
+
+```bash
+stellar contract build
+stellar contract bindings typescript \
+  --wasm target/wasm32v1-none/release/property_token.wasm \
+  --output-dir bindings/property-token --overwrite
+stellar contract bindings typescript \
+  --wasm target/wasm32v1-none/release/yield_distributor.wasm \
+  --output-dir bindings/yield-distributor --overwrite
+```
+
+### Copy into the other repos
+
+The generated packages are self-contained npm packages. Copy the folder for the contract you need into the consuming repo, for example:
+
+```bash
+# frontend: read-only clients for the webapp
+cp -R contract-bindings/property-token    ../defi-estate-frontend/src/contracts/property-token
+cp -R contract-bindings/yield-distributor ../defi-estate-frontend/src/contracts/yield-distributor
+
+# backend: clients used by the admin API
+cp -R contract-bindings/property-token    ../defi-estate-backend/src/contracts/property-token
+cp -R contract-bindings/yield-distributor ../defi-estate-backend/src/contracts/yield-distributor
+```
+
+Then install and import them like any local package:
+
+```bash
+# in the consuming repo, from the directory containing the copied package
+npm install ./src/contracts/property-token
+```
+
+```ts
+import { Client as PropertyTokenClient } from "./contracts/property-token";
+import { Client as YieldDistributorClient } from "./contracts/yield-distributor";
+```
+
+Commit the copied packages (or vendor them via your package manager) so the frontend and backend stay in sync with the deployed contract version. Regenerate and re-copy whenever the contract interface changes.

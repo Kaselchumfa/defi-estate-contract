@@ -41,6 +41,21 @@ jobs:
         with:
           name: contracts-wasm
           path: target/wasm32v1-none/release/*.wasm
+      - name: Install Stellar CLI
+        run: |
+          cargo install --locked stellar-cli --features opt
+          stellar --version
+      - name: Generate TypeScript bindings
+        run: |
+          for contract in property-token yield-distributor; do
+            stellar contract bindings typescript \
+              --wasm "target/wasm32v1-none/release/${contract}.wasm" \
+              --output-dir "bindings/${contract}"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contract-bindings
+          path: bindings/
 
   shellcheck:
     name: ShellCheck

@@ -1,4 +1,4 @@
-use soroban_sdk::{contractevent, Address, Env};
+use soroban_sdk::{contractevent, Address, BytesN, Env};
 
 #[contractevent]
 pub struct Mint {
@@ -28,6 +28,11 @@ pub struct AdminChanged {
     pub new_admin: Address,
 }
 
+#[contractevent]
+pub struct Upgraded {
+    pub new_wasm_hash: BytesN<32>,
+}
+
 pub fn mint(env: &Env, to: Address, amount: i128) {
     Mint { to, amount }.publish(env);
 }
@@ -42,4 +47,8 @@ pub fn whitelist_updated(env: &Env, account: Address, allowed: bool) {
 
 pub fn admin_changed(env: &Env, new_admin: Address) {
     AdminChanged { new_admin }.publish(env);
+}
+
+pub fn upgraded(env: &Env, new_wasm_hash: BytesN<32>) {
+    Upgraded { new_wasm_hash }.publish(env);
 }
