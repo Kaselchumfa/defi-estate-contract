@@ -93,9 +93,27 @@ impl YieldDistributor {
         amount
     }
 
-    pub fn set_admin(env: Env, new_admin: Address) {
+    /// Proposes `new_admin` as the successor. The current admin stays in place
+    /// until the proposed account calls `accept_admin`.
+    pub fn propose_admin(env: Env, new_admin: Address) {
         storage::admin(&env).require_auth();
+        env.storage().instance().set(&DataKey::PendingAdmin, &new_admin);
+        events::admin_proposed(&env, new_admin);
+    }
+
+    /// Accepts a pending admin proposal. Must be called by the proposed account.
+    pub fn accept_admin(env: Env) {
+        let new_admin = storage::pending_admin(&env);
+        new_admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &new_admin);
+        env.storage().instance().remove(&DataKey::PendingAdmin);
+        events::admin_changed(&env, new_admin);
+    }
+
+    /// Cancels a pending admin proposal. Only the current admin may do this.
+    pub fn cancel_admin_proposal(env: Env) {
+        storage::admin(&env).require_auth();
+        env.storage().instance().remove(&DataKey::PendingAdmin);
     }
 
     // Views
@@ -126,5 +144,9 @@ impl YieldDistributor {
 
     pub fn admin(env: Env) -> Address {
         storage::admin(&env)
+    }
+
+    pub fn pending_admin(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::PendingAdmin)
     }
 }

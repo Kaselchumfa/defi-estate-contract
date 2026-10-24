@@ -17,10 +17,38 @@ pub struct Transfer {
 }
 
 #[contractevent]
+pub struct Burn {
+    #[topic]
+    pub from: Address,
+    pub amount: i128,
+}
+
+#[contractevent]
+pub struct Approve {
+    #[topic]
+    pub from: Address,
+    #[topic]
+    pub spender: Address,
+    pub amount: i128,
+    pub expiration_ledger: u32,
+}
+
+#[contractevent]
 pub struct WhitelistUpdated {
     #[topic]
     pub account: Address,
     pub allowed: bool,
+}
+
+#[contractevent]
+pub struct Paused {}
+
+#[contractevent]
+pub struct Unpaused {}
+
+#[contractevent]
+pub struct AdminProposed {
+    pub new_admin: Address,
 }
 
 #[contractevent]
@@ -36,8 +64,34 @@ pub fn transfer(env: &Env, from: Address, to: Address, amount: i128) {
     Transfer { from, to, amount }.publish(env);
 }
 
+pub fn burn(env: &Env, from: Address, amount: i128) {
+    Burn { from, amount }.publish(env);
+}
+
+pub fn approve(env: &Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
+    Approve {
+        from,
+        spender,
+        amount,
+        expiration_ledger,
+    }
+    .publish(env);
+}
+
 pub fn whitelist_updated(env: &Env, account: Address, allowed: bool) {
     WhitelistUpdated { account, allowed }.publish(env);
+}
+
+pub fn paused(env: &Env) {
+    Paused {}.publish(env);
+}
+
+pub fn unpaused(env: &Env) {
+    Unpaused {}.publish(env);
+}
+
+pub fn admin_proposed(env: &Env, new_admin: Address) {
+    AdminProposed { new_admin }.publish(env);
 }
 
 pub fn admin_changed(env: &Env, new_admin: Address) {

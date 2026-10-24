@@ -11,11 +11,19 @@ Capped, whitelist-gated share token with 0 decimals.
 | `__constructor(admin, property_id, name, symbol, max_supply)`                                                   | deployer | `max_supply` = number of shares         |
 | `set_whitelisted(account, allowed)`                                                                             | admin    | KYC-reviewed holders only               |
 | `mint(to, amount)`                                                                                              | admin    | `to` must be whitelisted; supply capped |
+| `burn(from, amount)`                                                                                            | admin    | reduces holder balance and total supply |
 | `transfer(from, to, amount)`                                                                                    | `from`   | `to` must be whitelisted                |
-| `set_admin(new_admin)`                                                                                          | admin    |                                         |
-| `balance`, `total_supply`, `max_supply`, `is_whitelisted`, `name`, `symbol`, `decimals`, `property_id`, `admin` | none     | views                                   |
+| `approve(from, spender, amount, expiration_ledger)`                                                             | `from`   | allowance expires at `expiration_ledger` |
+| `transfer_from(spender, from, to, amount)`                                                                      | `spender`| `to` must be whitelisted                |
+| `burn_from(spender, from, amount)`                                                                              | `spender`| spends allowance, reduces supply        |
+| `pause()`                                                                                                       | admin    | blocks `mint` and `transfer`            |
+| `unpause()`                                                                                                     | admin    |                                         |
+| `propose_admin(new_admin)`                                                                                      | admin    | starts two-step admin transfer          |
+| `accept_admin()`                                                                                                | new admin| completes admin transfer                |
+| `cancel_admin_proposal()`                                                                                       | admin    | clears the pending admin                |
+| `balance`, `total_supply`, `max_supply`, `is_whitelisted`, `name`, `symbol`, `decimals`, `property_id`, `admin`, `allowance`, `is_paused`, `pending_admin` | none     | views                                   |
 
-Errors: `InvalidAmount`, `NotWhitelisted`, `InsufficientBalance`, `MaxSupplyExceeded`, `Overflow`.
+Errors: `InvalidAmount`, `NotWhitelisted`, `InsufficientBalance`, `MaxSupplyExceeded`, `Overflow`, `Paused`.
 
 ## yield-distributor
 
@@ -26,7 +34,10 @@ Holds rental income in a payout asset (for example a USDC Stellar Asset Contract
 | `__constructor(admin, payout_token, share_token)`                                                  | deployer |                                                                         |
 | `distribute(allocations: Map<Address, i128>)`                                                      | admin    | pulls the sum from admin, credits each holder, max 100 entries per call |
 | `claim(holder)`                                                                                    | holder   | pays everything owed                                                    |
-| `claimable`, `round`, `total_distributed`, `total_claimed`, `payout_token`, `share_token`, `admin` | none     | views                                                                   |
+| `propose_admin(new_admin)`                                                                         | admin    | starts two-step admin transfer                                          |
+| `accept_admin()`                                                                                   | new admin| completes admin transfer                                                |
+| `cancel_admin_proposal()`                                                                          | admin    | clears the pending admin                                                |
+| `claimable`, `round`, `total_distributed`, `total_claimed`, `payout_token`, `share_token`, `admin`, `pending_admin` | none     | views                                                                   |
 
 Errors: `InvalidAmount`, `InvalidAllocations`, `NothingToClaim`, `Overflow`.
 
