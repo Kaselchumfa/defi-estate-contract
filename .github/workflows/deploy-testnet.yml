@@ -1,0 +1,89 @@
+name: Deploy to Testnet
+
+on:
+  workflow_dispatch:
+    inputs:
+      property_id:
+        description: 'Property ID'
+        required: true
+        type: string
+      name:
+        description: 'Token name'
+        required: true
+        type: string
+      symbol:
+        description: 'Token symbol'
+        required: true
+        type: string
+      max_shares:
+        description: 'Maximum number of shares'
+        required: true
+        type: string
+      payout_token:
+        description: 'Payout token address'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  deploy:
+    name: Deploy contracts to testnet
+    runs-on: ubuntu-latest
+    env:
+      NETWORK: testnet
+      PROPERTY_ID: ${{ inputs.property_id }}
+      NAME: ${{ inputs.name }}
+      SYMBOL: ${{ inputs.symbol }}
+      MAX_SHARES: ${{ inputs.max_shares }}
+      PAYOUT_TOKEN: ${{ inputs.payout_token }}
+      STELLAR_SECRET_KEY: ${{ secrets.DEPLOYER_SECRET }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Stellar CLI
+        run: |
+          curl -fsSL https://github.com/stellar/stellar-cli/raw/main/install.sh | bash
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Verify deployer secret is set
+        run: |
+          if [ -z "${STELLAR_SECRET_KEY}" ]; then
+            echo "::error::DEPLOYER_SECRET repository secret is not set"
+            exit 1
+          fi
+
+      - name: Deploy contracts
+        run: |
+          chmod +x scripts/deploy-contracts.sh
+          ./scripts/deploy-contracts.sh
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(deployments): update testnet deployments for property ${{ inputs.property_id }}"
+          branch: deploy/testnet-${{ inputs.property_id }}
+          delete-branch: true
+          title: "chore(deployments): update testnet deployments for property ${{ inputs.property_id }}"
+          body: |
+            Automated deployment to testnet.
+
+            - Property ID: `${{ inputs.property_id }}`
+            - Name: `${{ inputs.name }}`
+            - Symbol: `${{ inputs.symbol }}`
+            - Max shares: `${{ inputs.max_shares }}`
+            - Payout token: `${{ inputs.payout_token }}`
+
+            This PR updates `deployments/testnet.json` with the newly deployed contract IDs.
+          add-paths: |
+            deployments/testnet.json
+          labels: |
+            deployments
+            automated
