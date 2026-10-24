@@ -10,12 +10,17 @@ mod events;
 mod storage;
 
 #[cfg(test)]
+mod proptests;
+#[cfg(test)]
 mod test;
 
 pub use errors::Error;
 
-use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, String};
+use soroban_sdk::{contract, contractimpl, panic_with_error, Address, BytesN, Env, String};
 use storage::DataKey;
+
+/// Contract version, bumped on every upgrade.
+pub const VERSION: u32 = 1;
 
 #[contract]
 pub struct PropertyToken;
@@ -108,6 +113,14 @@ impl PropertyToken {
         env.storage().instance().remove(&DataKey::PendingAdmin);
     }
 
+    /// Replaces the contract code in place. Admin only.
+    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+        storage::admin(&env).require_auth();
+        env.deployer()
+            .update_current_contract_wasm(new_wasm_hash.clone());
+        events::upgraded(&env, new_wasm_hash);
+    }
+
     // Holders
 
     pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
@@ -196,6 +209,10 @@ impl PropertyToken {
 
     pub fn decimals(_env: Env) -> u32 {
         0
+    }
+
+    pub fn version(_env: Env) -> u32 {
+        VERSION
     }
 }
 

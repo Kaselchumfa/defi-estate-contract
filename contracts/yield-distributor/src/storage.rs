@@ -12,9 +12,20 @@ pub enum DataKey {
     PayoutToken,
     ShareToken,
     Round,
+    RoundInfo(u32),
     TotalDistributed,
     TotalClaimed,
     Claimable(Address),
+}
+
+/// Summary of a single distribution round, kept for audits.
+#[contracttype]
+#[derive(Clone)]
+pub struct RoundInfo {
+    pub total: i128,
+    pub recipients: u32,
+    pub ledger: u32,
+    pub timestamp: u64,
 }
 
 pub fn extend_instance(env: &Env) {
@@ -58,6 +69,25 @@ pub fn total(env: &Env, key: DataKey) -> i128 {
 pub fn add_total(env: &Env, key: DataKey, amount: i128) {
     let next = total(env, key.clone()) + amount;
     env.storage().instance().set(&key, &next);
+}
+
+pub fn set_round_info(env: &Env, round: u32, info: &RoundInfo) {
+    let key = DataKey::RoundInfo(round);
+    env.storage().persistent().set(&key, info);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+}
+
+pub fn round_info(env: &Env, round: u32) -> Option<RoundInfo> {
+    let key = DataKey::RoundInfo(round);
+    let info: Option<RoundInfo> = env.storage().persistent().get(&key);
+    if info.is_some() {
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+    }
+    info
 }
 
 pub fn claimable(env: &Env, holder: &Address) -> i128 {
