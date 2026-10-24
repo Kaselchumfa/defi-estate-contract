@@ -1,0 +1,9 @@
+target/
+test_snapshots/
+.env
+.env.*
+.soroban/
+.stellar/
+.DS_Store
+.vscode/
+.idea/

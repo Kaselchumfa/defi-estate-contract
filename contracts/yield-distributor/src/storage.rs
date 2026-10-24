@@ -1,0 +1,65 @@
+use soroban_sdk::{contracttype, Address, Env};
+
+/// About 30 days at 5 second ledgers.
+const TTL_EXTEND_TO: u32 = 518_400;
+const TTL_THRESHOLD: u32 = TTL_EXTEND_TO - 17_280;
+
+#[contracttype]
+#[derive(Clone)]
+pub enum DataKey {
+    Admin,
+    PayoutToken,
+    ShareToken,
+    Round,
+    TotalDistributed,
+    TotalClaimed,
+    Claimable(Address),
+}
+
+pub fn extend_instance(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+}
+
+pub fn admin(env: &Env) -> Address {
+    env.storage().instance().get(&DataKey::Admin).unwrap()
+}
+
+pub fn payout_token(env: &Env) -> Address {
+    env.storage().instance().get(&DataKey::PayoutToken).unwrap()
+}
+
+pub fn bump_round(env: &Env) -> u32 {
+    let round: u32 = env.storage().instance().get(&DataKey::Round).unwrap_or(0) + 1;
+    env.storage().instance().set(&DataKey::Round, &round);
+    round
+}
+
+pub fn total(env: &Env, key: DataKey) -> i128 {
+    env.storage().instance().get(&key).unwrap_or(0)
+}
+
+pub fn add_total(env: &Env, key: DataKey, amount: i128) {
+    let next = total(env, key.clone()) + amount;
+    env.storage().instance().set(&key, &next);
+}
+
+pub fn claimable(env: &Env, holder: &Address) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Claimable(holder.clone()))
+        .unwrap_or(0)
+}
+
+pub fn set_claimable(env: &Env, holder: &Address, amount: i128) {
+    let key = DataKey::Claimable(holder.clone());
+    if amount == 0 {
+        env.storage().persistent().remove(&key);
+    } else {
+        env.storage().persistent().set(&key, &amount);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+    }
+}
