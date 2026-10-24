@@ -23,6 +23,8 @@ use soroban_sdk::{
 };
 use storage::DataKey;
 
+pub use storage::RoundInfo;
+
 /// Upper bound on allocations per call, to stay well inside the resource limits.
 pub const MAX_ALLOCATIONS: u32 = 100;
 
@@ -81,6 +83,13 @@ impl YieldDistributor {
 
         let round = storage::bump_round(&env);
         storage::add_total(&env, DataKey::TotalDistributed, total);
+        let info = RoundInfo {
+            total,
+            recipients: allocations.len(),
+            ledger: env.ledger().sequence(),
+            timestamp: env.ledger().timestamp(),
+        };
+        storage::set_round_info(&env, round, &info);
         storage::extend_instance(&env);
         events::distributed(&env, round, total, allocations.len());
         round
@@ -130,6 +139,10 @@ impl YieldDistributor {
 
     pub fn round(env: Env) -> u32 {
         env.storage().instance().get(&DataKey::Round).unwrap_or(0)
+    }
+
+    pub fn round_info(env: Env, round: u32) -> Option<RoundInfo> {
+        storage::round_info(&env, round)
     }
 
     pub fn total_distributed(env: Env) -> i128 {
